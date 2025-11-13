@@ -137,7 +137,7 @@ export default function EvacuationCentersMap() {
   return (
     <View style={{ flex: 1 }}>
       {/* Centers selector */}
-      <ScrollView horizontal style={styles.selector} contentContainerStyle={{ padding: 8 }}>
+      <ScrollView horizontal style={styles.selector} contentContainerStyle={{ padding: 8 }} showsHorizontalScrollIndicator={false}>
         {centers.map((c: any) => {
           const cap = c.capacity || 0
           const occ = c.currentCount || 0
@@ -150,9 +150,9 @@ export default function EvacuationCentersMap() {
           const bg = c.isActive ? '#ecfdf5' : '#f3f4f6' // light green when open, light gray when closed
           const textColor = c.isActive ? '#065f46' : '#374151'
           return (
-            <TouchableOpacity key={c.id} style={[styles.centerButton, { backgroundColor: bg }]} onPress={() => setSelectedCenter({ lat: c.location.lat, lng: c.location.lng })}>
-              <Text style={[styles.centerName, { color: textColor }]}>{c.name}{!c.isActive ? ' (Closed)' : ''}</Text>
-              <Text style={[styles.centerMeta, { color: textColor }]}>{`Capacity: ${cap} • Occupied: ${occ} • ${pct}% • ${status}`}</Text>
+            <TouchableOpacity key={c.id} style={[styles.centerButton, { backgroundColor: bg }]} onPress={() => setSelectedCenter({ lat: c.location.lat, lng: c.location.lng })} activeOpacity={0.8}>
+              <Text style={[styles.centerName, { color: textColor }]} numberOfLines={1} ellipsizeMode="tail">{c.name}{!c.isActive ? ' (Closed)' : ''}</Text>
+              <Text style={[styles.centerMeta, { color: textColor }]} numberOfLines={2} ellipsizeMode="tail">{`Capacity: ${cap} • Occupied: ${occ} • ${pct}% • ${status}`}</Text>
             </TouchableOpacity>
           )
         })}
@@ -174,7 +174,7 @@ export default function EvacuationCentersMap() {
 
 const styles = StyleSheet.create({
   selector: { backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#eee' },
-  centerButton: { padding: 8, marginRight: 8, backgroundColor: '#f8fafc', borderRadius: 8, minWidth: 160 },
-  centerName: { fontWeight: '600' },
+  centerButton: { padding: 8, marginRight: 8, backgroundColor: '#f8fafc', borderRadius: 8, minWidth: 120, maxWidth: 260 },
+  centerName: { fontWeight: '600', fontSize: 14 },
   centerMeta: { fontSize: 12, color: '#444' }
 })
