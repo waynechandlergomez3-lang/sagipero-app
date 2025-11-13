@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "SagiperoMobile",
-    "slug": "SagiperoMobile",
+    "slug": "sagipero-mobile-fresh",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -13,17 +13,27 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "googleServicesFile": "./google-services.json",
+      "package": "com.sagipero.sagiperomobilefresh"
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "081917ed-16a4-4c9d-a390-d821e292d4e9"
+      }
     }
   }
 }
