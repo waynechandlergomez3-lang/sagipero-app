@@ -1,0 +1,29 @@
+# Ignore node modules and common large folders
+node_modules/
+.expo/
+.expo-shared/
+.git/
+*.log
+npm-debug.log*
+.yarn/*
+coverage/
+build/
+dist/
+android/
+ios/
+
+# Ignore backend and generated prisma files that shouldn't be uploaded
+backend/src/generated/prisma/
+backend/node_modules/
+backend/.next/
+
+# OS temp files
+.DS_Store
+Thumbs.db
+
+# Other
+.env
+.env.*
+
+# Keep this file in the tarball
+!.easignore
