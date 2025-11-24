@@ -41,6 +41,8 @@ import Notifications from './src/components/Notifications';
 import { initializeSocket, socket } from './src/services/socket';
 import { Ionicons } from '@expo/vector-icons';
 import { SOSButton } from './src/components/SOSButton';
+import ResponderInventory from './src/components/ResponderInventory';
+import ResponderVehicles from './src/components/ResponderVehicles';
 
 // runtime discovery will update the api base; fallbacks live in src/services/config.ts
 const Stack = createNativeStackNavigator();
@@ -666,6 +668,12 @@ export default function App() {
             {({ navigation }) => <ResponderHome navigation={navigation} token={token} />}
           </Stack.Screen>
         )}
+        <Stack.Screen name="ResponderInventory" options={{ headerShown: true, title: 'My Inventory' }}>
+          {({ navigation }) => <ResponderInventory navigation={navigation} />}
+        </Stack.Screen>
+        <Stack.Screen name="ResponderVehicles" options={{ headerShown: true, title: 'My Vehicles' }}>
+          {({ navigation }) => <ResponderVehicles navigation={navigation} />}
+        </Stack.Screen>
         <Stack.Screen name="Profile" options={{ headerShown: false }}>
           {({ navigation }) => <ProfileScreen navigation={navigation} token={token} setToken={saveToken} />}
         </Stack.Screen>
