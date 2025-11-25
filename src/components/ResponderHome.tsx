@@ -24,6 +24,9 @@ export default function ResponderHome({ navigation, token }: any) {
   const [notificationsVisible, setNotificationsVisible] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const RESPONDER_TYPES = ['MEDICAL','FIRE','RESCUE','POLICE'];
+  const [responderTypes, setResponderTypes] = useState<string[]>([]);
+  const [savingTypes, setSavingTypes] = useState(false);
   const [acceptModalVisible, setAcceptModalVisible] = useState(false);
   const [accepting, setAccepting] = useState(false);
   const [showingMapPreview, setShowingMapPreview] = useState(false);
@@ -73,6 +76,7 @@ export default function ResponderHome({ navigation, token }: any) {
       const t = await AsyncStorage.getItem('userToken');
   const res = await api.get(`/users/profile`, { headers: { Authorization: `Bearer ${t || token}` } });
       setProfileName(res.data.name || 'Responder');
+      try { setResponderTypes(Array.isArray(res.data.responderTypes) ? res.data.responderTypes.map((s:string)=>String(s).toUpperCase()) : []) } catch(e){}
     } catch (err) { console.warn('fetch profile failed', err); }
   };
 
@@ -520,6 +524,42 @@ export default function ResponderHome({ navigation, token }: any) {
         <TouchableOpacity style={[styles.chip, status === 'VEHICLE_UNAVAILABLE' ? styles.chipActive : {}]} onPress={() => toggleAvailability('VEHICLE_UNAVAILABLE')}>
           <Text style={{ color: status === 'VEHICLE_UNAVAILABLE' ? '#fff' : '#333', fontWeight: '700' }}>Vehicle Unavailable</Text>
         </TouchableOpacity>
+      </View>
+
+      {/* Responder Types selector */}
+      <View style={{ padding: 12, backgroundColor: '#fff', borderRadius: 12, margin: 12 }}>
+        <Text style={{ fontWeight: '700', marginBottom: 8 }}>Responder Types</Text>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+          {RESPONDER_TYPES.map((t) => {
+            const active = responderTypes.includes(t);
+            return (
+              <TouchableOpacity key={t} onPress={() => {
+                if (active) setResponderTypes(prev => prev.filter(x => x !== t));
+                else setResponderTypes(prev => [...prev, t]);
+              }} style={[styles.chip, active ? styles.chipActive : {}, { marginRight: 8, marginBottom: 8 }]}>
+                <Text style={{ color: active ? '#fff' : '#333', fontWeight: '700' }}>{t}</Text>
+              </TouchableOpacity>
+            )
+          })}
+        </View>
+        <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 10 }}>
+          <TouchableOpacity style={[styles.modalBtn, { marginRight: 8 }]} onPress={() => { setResponderTypes([]); }}>
+            <Text>Clear</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.modalPrimary, { paddingHorizontal: 12 }]} onPress={async () => {
+            try {
+              setSavingTypes(true);
+              const tkn = await AsyncStorage.getItem('userToken');
+              await api.patch('/users/profile', { responderTypes }, { headers: { Authorization: `Bearer ${tkn || token}` } });
+              Alert.alert('Saved', 'Responder types updated');
+            } catch (e) {
+              console.warn('save responder types failed', e);
+              Alert.alert('Error', 'Failed to save responder types');
+            } finally { setSavingTypes(false); }
+          }}>
+            {savingTypes ? <ActivityIndicator color="#fff" /> : <Text style={{ color: '#fff' }}>Save</Text>}
+          </TouchableOpacity>
+        </View>
       </View>
 
   </View>

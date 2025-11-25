@@ -43,6 +43,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { SOSButton } from './src/components/SOSButton';
 import ResponderInventory from './src/components/ResponderInventory';
 import ResponderVehicles from './src/components/ResponderVehicles';
+import CitizenMediaScreen from './src/components/CitizenMediaScreen';
 
 // runtime discovery will update the api base; fallbacks live in src/services/config.ts
 const Stack = createNativeStackNavigator();
@@ -473,6 +474,7 @@ function MainScreen({ token, setToken, navigation }: { token: string | null, set
                   { title: 'Emergency Hotlines', icon: 'call', keywords: ['hotline', 'phone', 'call', 'contact'], route: 'EmergencyHotlines' },
                   { title: 'Medical Profile', icon: 'medical', keywords: ['medical', 'health', 'doctor'], route: 'MedicalProfile' },
                   { title: 'Evacuation Centers', icon: 'location', keywords: ['evac', 'center', 'location', 'shelter'], route: 'EvacuationCentersMap' },
+                  { title: 'Submit Media', icon: 'camera', keywords: ['media', 'photo', 'video', 'submit', 'citizen'], route: 'CitizenMedia' },
                 ].filter(item => 
                   query && (item.title.toLowerCase().includes(query) || 
                   item.keywords.some(k => k.includes(query)))
@@ -724,6 +726,9 @@ export default function App() {
         </Stack.Screen>
         <Stack.Screen name="Notifications" options={{ headerShown: true, title: 'Notifications', headerStyle: { backgroundColor: '#1a73e8' }, headerTintColor: '#fff' }}>
           {({ navigation, route }) => <Notifications navigation={navigation} route={route as any} />}
+        </Stack.Screen>
+        <Stack.Screen name="CitizenMedia" options={{ headerShown: false }}>
+          {({ navigation, route }) => <CitizenMediaScreen navigation={navigation} />}
         </Stack.Screen>
       </Stack.Navigator>
     </NavigationContainer>
