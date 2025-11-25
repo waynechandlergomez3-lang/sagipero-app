@@ -44,6 +44,7 @@ import { SOSButton } from './src/components/SOSButton';
 import ResponderInventory from './src/components/ResponderInventory';
 import ResponderVehicles from './src/components/ResponderVehicles';
 import CitizenMediaScreen from './src/components/CitizenMediaScreen';
+import ConcernedCitizenScreen from './src/components/ConcernedCitizenScreen';
 
 // runtime discovery will update the api base; fallbacks live in src/services/config.ts
 const Stack = createNativeStackNavigator();
@@ -474,7 +475,7 @@ function MainScreen({ token, setToken, navigation }: { token: string | null, set
                   { title: 'Emergency Hotlines', icon: 'call', keywords: ['hotline', 'phone', 'call', 'contact'], route: 'EmergencyHotlines' },
                   { title: 'Medical Profile', icon: 'medical', keywords: ['medical', 'health', 'doctor'], route: 'MedicalProfile' },
                   { title: 'Evacuation Centers', icon: 'location', keywords: ['evac', 'center', 'location', 'shelter'], route: 'EvacuationCentersMap' },
-                  { title: 'Submit Media', icon: 'camera', keywords: ['media', 'photo', 'video', 'submit', 'citizen'], route: 'CitizenMedia' },
+                  { title: 'Concerned Citizen', icon: 'person-add', keywords: ['media', 'photo', 'video', 'submit', 'citizen', 'concern', 'location'], route: 'ConcernedCitizen' },
                 ].filter(item => 
                   query && (item.title.toLowerCase().includes(query) || 
                   item.keywords.some(k => k.includes(query)))
@@ -729,6 +730,9 @@ export default function App() {
         </Stack.Screen>
         <Stack.Screen name="CitizenMedia" options={{ headerShown: false }}>
           {({ navigation, route }) => <CitizenMediaScreen navigation={navigation} />}
+        </Stack.Screen>
+        <Stack.Screen name="ConcernedCitizen" options={{ headerShown: false }}>
+          {({ navigation, route }) => <ConcernedCitizenScreen navigation={navigation} />}
         </Stack.Screen>
       </Stack.Navigator>
     </NavigationContainer>
