@@ -26,16 +26,21 @@ export default function ConcernedCitizenScreen({ navigation }: { navigation: any
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [tab, setTab] = useState<'media' | 'location'>('media')
-
-  // Location sharing states
+  const [selectedEmergencyType, setSelectedEmergencyType] = useState<string | null>(null)
   const [location, setLocation] = useState<any>(null)
+  const [locationMessage, setLocationMessage] = useState<string | null>(null)
   const [loadingLocation, setLoadingLocation] = useState(false)
+
+  // Location sharing states (for location tab)
+  const [loadingLocationTab, setLoadingLocationTab] = useState(false)
   const [reason, setReason] = useState('')
   const [sharingLocation, setSharingLocation] = useState(false)
   const [sharingSuccess, setSharingSuccess] = useState(false)
   const [successMessage, setSuccessMessage] = useState('')
 
   const scrollViewRef = useRef<ScrollView>(null)
+
+  const emergencyTypes = ['FIRE', 'MEDICAL', 'POLICE', 'RESCUE', 'DISASTER_MANAGEMENT', 'COMMUNITY_RESPONDER', 'FLOOD', 'EARTHQUAKE']
 
   useEffect(() => {
     const loadToken = async () => {
@@ -97,6 +102,16 @@ export default function ConcernedCitizenScreen({ navigation }: { navigation: any
       return
     }
 
+    if (!selectedEmergencyType) {
+      Alert.alert('Error', 'Please select an emergency type')
+      return
+    }
+
+    if (!location) {
+      Alert.alert('Error', 'Please share your location before uploading')
+      return
+    }
+
     setUploading(true)
     setUploadProgress(0)
 
@@ -113,6 +128,8 @@ export default function ConcernedCitizenScreen({ navigation }: { navigation: any
 
       formData.append('caption', mediaCaption)
       formData.append('mediaType', selectedMedia.type === 'video' ? 'video' : 'photo')
+      formData.append('emergencyType', selectedEmergencyType)
+      formData.append('location', JSON.stringify(location))
 
       const config = {
         headers: {
@@ -133,14 +150,49 @@ export default function ConcernedCitizenScreen({ navigation }: { navigation: any
         Alert.alert('Success', 'Media uploaded successfully! Admin will review it.')
         setSelectedMedia(null)
         setMediaCaption('')
+        setSelectedEmergencyType(null)
+        setLocation(null)
+        setLocationMessage(null)
         setUploadProgress(0)
       }
     } catch (err: any) {
       console.error('Upload error:', err)
-      const errorMessage = err.response?.data?.message || err.message || 'Failed to upload media'
-      Alert.alert('Upload Failed', errorMessage)
+      const errorMessage = err.response?.data?.error || err.response?.data?.message || err.message || 'Failed to upload media'
+      // Check if error is due to active emergency
+      if (err.response?.data?.activeEmergencyId) {
+        Alert.alert('Cannot Upload', `${errorMessage}\n\nYou have an active emergency (Status: ${err.response.data.activeEmergencyStatus}). Please resolve it first.`)
+      } else {
+        Alert.alert('Upload Failed', errorMessage)
+      }
     } finally {
       setUploading(false)
+    }
+  }
+
+  const getLocationForMedia = async () => {
+    try {
+      setLoadingLocation(true)
+      const { status } = await Location.requestForegroundPermissionsAsync()
+      if (status !== 'granted') {
+        Alert.alert('Permission denied', 'Location permission is required')
+        setLoadingLocation(false)
+        return
+      }
+
+      const currentLocation = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      })
+
+      const { latitude, longitude } = currentLocation.coords
+      const loc = { lat: latitude, lng: longitude }
+      
+      setLocation(loc)
+      setLocationMessage(`Location shared: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`)
+    } catch (err: any) {
+      console.error('Location error:', err)
+      Alert.alert('Error', 'Failed to get location: ' + err.message)
+    } finally {
+      setLoadingLocation(false)
     }
   }
 
@@ -324,6 +376,66 @@ export default function ConcernedCitizenScreen({ navigation }: { navigation: any
               </TouchableOpacity>
             </View>
 
+            {/* Emergency Type Selection */}
+            {selectedMedia && (
+              <>
+                <View style={styles.inputContainer}>
+                  <Text style={styles.inputLabel}>Emergency Type *</Text>
+                  <ScrollView 
+                    horizontal 
+                    showsHorizontalScrollIndicator={false}
+                    style={styles.typeScroll}
+                  >
+                    {emergencyTypes.map(type => (
+                      <TouchableOpacity
+                        key={type}
+                        onPress={() => setSelectedEmergencyType(type)}
+                        style={[
+                          styles.typeButton,
+                          selectedEmergencyType === type && styles.typeButtonActive
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.typeButtonText,
+                            selectedEmergencyType === type && styles.typeButtonTextActive
+                          ]}
+                        >
+                          {type.replace(/_/g, ' ')}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+
+                {/* Location Requirement */}
+                <View style={styles.inputContainer}>
+                  <Text style={styles.inputLabel}>Share Location *</Text>
+                  {location ? (
+                    <View style={styles.locationSuccess}>
+                      <Ionicons name="checkmark-circle" size={20} color="#4caf50" />
+                      <Text style={styles.locationSuccessText}>{locationMessage}</Text>
+                    </View>
+                  ) : (
+                    <TouchableOpacity
+                      style={[
+                        styles.button,
+                        styles.buttonSecondary,
+                        loadingLocation && styles.buttonDisabled
+                      ]}
+                      onPress={getLocationForMedia}
+                      disabled={loadingLocation}
+                    >
+                      <Ionicons name="location" size={20} color="#1a73e8" />
+                      <Text style={styles.buttonText}>
+                        {loadingLocation ? 'Getting Location...' : 'Share Your Location'}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </>
+            )}
+
             {selectedMedia && (
               <View style={styles.inputContainer}>
                 <Text style={styles.inputLabel}>Description *</Text>
@@ -356,10 +468,10 @@ export default function ConcernedCitizenScreen({ navigation }: { navigation: any
               style={[
                 styles.button,
                 styles.buttonPrimary,
-                (!selectedMedia || uploading) && styles.buttonDisabled,
+                (!selectedMedia || !selectedEmergencyType || !location || uploading) && styles.buttonDisabled,
               ]}
               onPress={uploadMedia}
-              disabled={!selectedMedia || uploading}
+              disabled={!selectedMedia || !selectedEmergencyType || !location || uploading}
             >
               {uploading ? (
                 <>
@@ -741,5 +853,47 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#0d47a1',
     lineHeight: 18,
+  },
+  typeScroll: {
+    marginBottom: 12,
+  },
+  typeButton: {
+    backgroundColor: '#f0f0f0',
+    borderWidth: 2,
+    borderColor: '#ddd',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginRight: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  typeButtonActive: {
+    backgroundColor: '#1a73e8',
+    borderColor: '#1a73e8',
+  },
+  typeButtonText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#333',
+  },
+  typeButtonTextActive: {
+    color: '#fff',
+  },
+  locationSuccess: {
+    backgroundColor: '#e8f5e9',
+    borderLeftWidth: 4,
+    borderLeftColor: '#4caf50',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  locationSuccessText: {
+    color: '#2e7d32',
+    fontSize: 13,
+    fontWeight: '500',
   },
 })
