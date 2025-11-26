@@ -1,398 +1,233 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import {
+  StyleSheet,
   View,
   Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  ActivityIndicator,
-  Alert,
-  Image,
-  Modal,
   SafeAreaView,
-  FlatList,
+  TouchableOpacity,
+  Image,
+  ScrollView,
+  Alert,
+  ActivityIndicator,
+  TextInput as RNTextInput,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import * as DocumentPicker from 'expo-document-picker';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Ionicons } from '@expo/vector-icons';
 import { api as apiClient } from '../services/api';
 
 interface MediaItem {
-  id: string;
-  mediaUrl: string;
-  mediaType: string;
-  caption?: string;
-  status: string;
-  notes?: string;
-  createdAt: string;
-  reviewedAt?: string;
+  uri: string;
+  type: 'image' | 'video';
+  name?: string;
 }
 
-export default function CitizenMediaScreen({ navigation }: { navigation: any }) {
-  const [token, setToken] = useState<string | null>(null);
-  const [media, setMedia] = useState<MediaItem[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [modalVisible, setModalVisible] = useState(false);
+const CitizenMediaScreen = ({ navigation }: { navigation: any }) => {
   const [selectedMedia, setSelectedMedia] = useState<MediaItem | null>(null);
-  const [caption, setCaption] = useState('');
-  const [mediaType, setMediaType] = useState<'photo' | 'video'>('photo');
-  const fileRef = useRef<any>(null);
+  const [description, setDescription] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
 
-  React.useEffect(() => {
-    loadToken();
-  }, []);
+  const pickImage = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: false,
+      aspect: [4, 3],
+      quality: 0.8,
+    });
 
-  const loadToken = async () => {
-    try {
-      const savedToken = await AsyncStorage.getItem('userToken');
-      setToken(savedToken);
-      if (savedToken) {
-        fetchMyMedia(savedToken);
-      }
-    } catch (err) {
-      console.error('Failed to load token', err);
+    if (!result.canceled && result.assets[0]) {
+      const asset = result.assets[0];
+      setSelectedMedia({
+        uri: asset.uri,
+        type: 'image',
+        name: asset.fileName || 'media.jpg',
+      });
     }
   };
 
-  const fetchMyMedia = async (authToken: string) => {
+  const takePhoto = async () => {
+    const result = await ImagePicker.launchCameraAsync({
+      allowsEditing: false,
+      aspect: [4, 3],
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      const asset = result.assets[0];
+      setSelectedMedia({
+        uri: asset.uri,
+        type: 'image',
+        name: asset.fileName || 'photo.jpg',
+      });
+    }
+  };
+
+  const submitMedia = async () => {
+    if (!selectedMedia) {
+      Alert.alert('Error', 'Please select media first');
+      return;
+    }
+
+    if (!description.trim()) {
+      Alert.alert('Error', 'Please provide a description');
+      return;
+    }
+
     setLoading(true);
     try {
-      const res = await apiClient.get('/media/my-submissions', {
-        headers: { Authorization: `Bearer ${authToken}` }
+      const formData = new FormData();
+      formData.append('media', {
+        uri: selectedMedia.uri,
+        type: 'image/jpeg',
+        name: selectedMedia.name,
+      } as any);
+      formData.append('description', description);
+
+      const response = await apiClient.post('/media/upload', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
       });
-      setMedia(Array.isArray(res.data) ? res.data : []);
-    } catch (err: any) {
-      console.error('Failed to fetch media', err);
-      Alert.alert('Error', 'Failed to load your submissions');
+
+      if (response.status === 200 || response.status === 201) {
+        setSubmitted(true);
+        setTimeout(() => {
+          setSubmitted(false);
+          setSelectedMedia(null);
+          setDescription('');
+          navigation.goBack();
+        }, 2000);
+      }
+    } catch (error: any) {
+      console.error('Upload error:', error);
+      Alert.alert('Error', error?.response?.data?.message || 'Failed to upload media');
     } finally {
       setLoading(false);
     }
   };
 
-  const pickImage = async () => {
-    try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [4, 3],
-        quality: 0.8,
-      });
-
-      if (!result.canceled) {
-        fileRef.current = result.assets[0];
-        setMediaType('photo');
-        setCaption('');
-        setModalVisible(true);
-      }
-    } catch (err) {
-      console.error('Image picker error', err);
-      Alert.alert('Error', 'Failed to pick image');
-    }
-  };
-
-  const pickVideo = async () => {
-    try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Videos,
-        quality: ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
-      });
-
-      if (!result.canceled) {
-        fileRef.current = result.assets[0];
-        setMediaType('video');
-        setCaption('');
-        setModalVisible(true);
-      }
-    } catch (err) {
-      console.error('Video picker error', err);
-      Alert.alert('Error', 'Failed to pick video');
-    }
-  };
-
-  const uploadMedia = async () => {
-    if (!fileRef.current || !token) {
-      Alert.alert('Error', 'Missing file or authentication');
-      return;
-    }
-
-    setUploading(true);
-    try {
-      // In production, upload to cloud storage (S3, Firebase, etc.) first
-      // For now, using the file URI as mediaUrl (assumes app handles local file serving)
-      const mediaUrl = fileRef.current.uri;
-
-      const res = await apiClient.post(
-        '/media',
-        {
-          mediaUrl,
-          mediaType,
-          caption: caption || null
-        },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      Alert.alert('Success', 'Media submitted for review');
-      setModalVisible(false);
-      setCaption('');
-      fileRef.current = null;
-      
-      // Refresh media list
-      await fetchMyMedia(token);
-    } catch (err: any) {
-      console.error('Upload error', err);
-      Alert.alert('Error', 'Failed to upload media');
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const deleteMedia = async (id: string) => {
-    Alert.alert(
-      'Delete Submission?',
-      'Are you sure you want to delete this submission?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await apiClient.delete(`/media/${id}`, {
-                headers: { Authorization: `Bearer ${token}` }
-              });
-              Alert.alert('Success', 'Submission deleted');
-              fetchMyMedia(token!);
-            } catch (err) {
-              Alert.alert('Error', 'Failed to delete submission');
-            }
-          }
-        }
-      ]
-    );
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'APPROVED':
-        return '#4CAF50';
-      case 'REJECTED':
-        return '#F44336';
-      case 'PENDING':
-      default:
-        return '#FFC107';
-    }
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'APPROVED':
-        return 'checkmark-circle';
-      case 'REJECTED':
-        return 'close-circle';
-      case 'PENDING':
-      default:
-        return 'time';
-    }
-  };
-
-  const renderMediaItem = ({ item }: { item: MediaItem }) => (
-    <View style={styles.mediaCard}>
-      <TouchableOpacity
-        style={styles.mediaPreview}
-        onPress={() => setSelectedMedia(item)}
-      >
-        {item.mediaType === 'photo' ? (
-          <Image
-            source={{ uri: item.mediaUrl }}
-            style={styles.mediaImage}
-            resizeMode="cover"
-          />
-        ) : (
-          <View style={styles.videoPlaceholder}>
-            <Ionicons name="play-circle" size={48} color="#fff" />
-            <Text style={styles.videoLabel}>Video</Text>
-          </View>
-        )}
-        <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
-          <Ionicons
-            name={getStatusIcon(item.status) as any}
-            size={14}
-            color="#fff"
-          />
-          <Text style={styles.statusText}>{item.status}</Text>
+  if (submitted) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.successContainer}>
+          <Ionicons name="checkmark-circle" size={80} color="#4CAF50" />
+          <Text style={styles.successTitle}>Media Submitted!</Text>
+          <Text style={styles.successText}>Thank you for your contribution. Your media has been submitted successfully.</Text>
         </View>
-      </TouchableOpacity>
-
-      <View style={styles.mediaInfo}>
-        {item.caption && (
-          <Text style={styles.caption} numberOfLines={2}>
-            {item.caption}
-          </Text>
-        )}
-        <Text style={styles.timestamp}>
-          {new Date(item.createdAt).toLocaleDateString()} •{' '}
-          {new Date(item.createdAt).toLocaleTimeString()}
-        </Text>
-        {item.notes && (
-          <View style={styles.reviewNotes}>
-            <Text style={styles.reviewNotesLabel}>Admin Notes:</Text>
-            <Text style={styles.reviewNotesText}>{item.notes}</Text>
-          </View>
-        )}
-      </View>
-
-      <TouchableOpacity
-        style={styles.deleteBtn}
-        onPress={() => deleteMedia(item.id)}
-      >
-        <Ionicons name="trash" size={18} color="#F44336" />
-      </TouchableOpacity>
-    </View>
-  );
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Ionicons name="chevron-back" size={28} color="#333" />
+          <Ionicons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
-        <Text style={styles.title}>Submit Media</Text>
-        <View style={{ width: 28 }} />
+        <Text style={styles.headerTitle}>Submit Media</Text>
+        <View style={{ width: 24 }} />
       </View>
 
-      <ScrollView
-        style={styles.content}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Upload buttons */}
-        <View style={styles.uploadSection}>
-          <Text style={styles.sectionTitle}>Share Emergency Evidence</Text>
-          <Text style={styles.sectionSubtitle}>
-            Help emergency responders by submitting photos or videos of the situation
-          </Text>
-
-          <View style={styles.buttonRow}>
-            <TouchableOpacity
-              style={styles.uploadButton}
-              onPress={pickImage}
-              disabled={uploading}
-            >
-              <Ionicons name="camera" size={24} color="#1a73e8" />
-              <Text style={styles.uploadButtonText}>Take Photo</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.uploadButton}
-              onPress={pickVideo}
-              disabled={uploading}
-            >
-              <Ionicons name="videocam" size={24} color="#1a73e8" />
-              <Text style={styles.uploadButtonText}>Take Video</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* My submissions */}
-        <View style={styles.submissionsSection}>
-          <View style={styles.submissionHeader}>
-            <Text style={styles.sectionTitle}>My Submissions</Text>
-            {media.length > 0 && (
-              <View style={styles.countBadge}>
-                <Text style={styles.countText}>{media.length}</Text>
-              </View>
-            )}
-          </View>
-
-          {loading ? (
-            <ActivityIndicator size="large" color="#1a73e8" style={styles.loader} />
-          ) : media.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Ionicons name="image-outline" size={48} color="#ccc" />
-              <Text style={styles.emptyText}>No submissions yet</Text>
-              <Text style={styles.emptySubtext}>
-                Submit photos or videos to help emergency responders
-              </Text>
+      <ScrollView style={styles.content}>
+        {/* Media Selection Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Select Media</Text>
+          
+          {selectedMedia ? (
+            <View style={styles.mediaPreviewContainer}>
+              <Image
+                source={{ uri: selectedMedia.uri }}
+                style={styles.mediaPreview}
+                resizeMode="cover"
+              />
+              <TouchableOpacity
+                style={styles.removeButton}
+                onPress={() => setSelectedMedia(null)}
+              >
+                <Ionicons name="close" size={24} color="#fff" />
+              </TouchableOpacity>
             </View>
           ) : (
-            <FlatList
-              data={media}
-              renderItem={renderMediaItem}
-              keyExtractor={(item) => item.id}
-              scrollEnabled={false}
-              ItemSeparatorComponent={() => <View style={styles.separator} />}
-            />
+            <View style={styles.mediaPlaceholder}>
+              <Ionicons name="image" size={48} color="#ccc" />
+              <Text style={styles.placeholderText}>No media selected</Text>
+            </View>
           )}
-        </View>
-      </ScrollView>
 
-      {/* Upload modal */}
-      <Modal visible={modalVisible} transparent animationType="slide">
-        <SafeAreaView style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={() => setModalVisible(false)}>
-              <Text style={styles.modalCloseText}>Cancel</Text>
-            </TouchableOpacity>
-            <Text style={styles.modalTitle}>Add Caption</Text>
+          <View style={styles.buttonGroup}>
             <TouchableOpacity
-              onPress={uploadMedia}
-              disabled={uploading}
+              style={[styles.button, styles.primaryButton]}
+              onPress={takePhoto}
             >
-              <Text style={[styles.modalSubmitText, uploading && { opacity: 0.5 }]}>
-                {uploading ? 'Uploading...' : 'Submit'}
-              </Text>
+              <Ionicons name="camera" size={20} color="#fff" />
+              <Text style={styles.buttonText}>Take Photo</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.button, styles.secondaryButton]}
+              onPress={pickImage}
+            >
+              <Ionicons name="image" size={20} color="#fff" />
+              <Text style={styles.buttonText}>Choose from Gallery</Text>
             </TouchableOpacity>
           </View>
-
-          <ScrollView style={styles.modalContent}>
-            {fileRef.current && (
-              <Image
-                source={{ uri: fileRef.current.uri }}
-                style={styles.previewImage}
-                resizeMode="contain"
-              />
-            )}
-
-            <View style={styles.captionInput}>
-              <Text style={styles.inputLabel}>Caption (Optional)</Text>
-              <View style={styles.textInputWrapper}>
-                <Text style={styles.charCount}>
-                  {caption.length}/200
-                </Text>
-              </View>
-            </View>
-          </ScrollView>
-        </SafeAreaView>
-      </Modal>
-
-      {/* Detail modal */}
-      <Modal visible={!!selectedMedia} transparent animationType="fade">
-        <View style={styles.detailOverlay}>
-          <TouchableOpacity
-            style={styles.detailClose}
-            onPress={() => setSelectedMedia(null)}
-          >
-            <Ionicons name="close" size={28} color="#fff" />
-          </TouchableOpacity>
-
-          {selectedMedia && (
-            <View style={styles.detailContent}>
-              <Image
-                source={{ uri: selectedMedia.mediaUrl }}
-                style={styles.detailImage}
-                resizeMode="contain"
-              />
-              {selectedMedia.caption && (
-                <Text style={styles.detailCaption}>{selectedMedia.caption}</Text>
-              )}
-            </View>
-          )}
         </View>
-      </Modal>
+
+        {/* Description Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Description</Text>
+          <Text style={styles.descriptionLabel}>
+            Describe what's in the media (e.g., location, situation, emergency type)
+          </Text>
+          <View style={styles.inputContainer}>
+            <RNTextInput
+              style={styles.textInput}
+              placeholder="Enter description..."
+              placeholderTextColor="#999"
+              value={description}
+              onChangeText={setDescription}
+              multiline
+              numberOfLines={5}
+            />
+          </View>
+        </View>
+
+        {/* Info Section */}
+        <View style={styles.section}>
+          <View style={styles.infoBox}>
+            <Ionicons name="information-circle" size={20} color="#1a73e8" />
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <Text style={styles.infoTitle}>Why submit media?</Text>
+              <Text style={styles.infoText}>
+                Your photos and videos help emergency responders understand situations better and respond more effectively.
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Submit Button */}
+        <TouchableOpacity
+          style={[styles.submitButton, (loading || !selectedMedia) && styles.submitButtonDisabled]}
+          onPress={submitMedia}
+          disabled={loading || !selectedMedia}
+        >
+          {loading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <>
+              <Ionicons name="cloud-upload" size={20} color="#fff" />
+              <Text style={styles.submitButtonText}>Submit Media</Text>
+            </>
+          )}
+        </TouchableOpacity>
+
+        <View style={{ height: 40 }} />
+      </ScrollView>
     </SafeAreaView>
   );
-}
+};
+
+export default CitizenMediaScreen;
 
 const styles = StyleSheet.create({
   container: {
@@ -409,7 +244,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
   },
-  title: {
+  headerTitle: {
     fontSize: 18,
     fontWeight: '700',
     color: '#333',
@@ -418,259 +253,165 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 16,
   },
-  uploadSection: {
+  section: {
     backgroundColor: '#fff',
     borderRadius: 12,
     padding: 16,
-    marginBottom: 20,
+    marginBottom: 16,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.08,
-    shadowRadius: 4,
+    shadowRadius: 3,
     elevation: 2,
   },
   sectionTitle: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#333',
-    marginBottom: 4,
-  },
-  sectionSubtitle: {
-    fontSize: 13,
-    color: '#666',
-    marginBottom: 16,
-  },
-  buttonRow: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  uploadButton: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 16,
-    borderRadius: 8,
-    backgroundColor: '#f0f0f0',
-    borderWidth: 2,
-    borderColor: '#e0e0e0',
-  },
-  uploadButtonText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#1a73e8',
-    marginTop: 8,
-  },
-  submissionsSection: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  submissionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-  },
-  countBadge: {
-    backgroundColor: '#1a73e8',
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  countText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 12,
-  },
-  loader: {
-    marginVertical: 32,
-  },
-  emptyState: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 32,
-  },
-  emptyText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#999',
-    marginTop: 12,
-  },
-  emptySubtext: {
-    fontSize: 13,
-    color: '#bbb',
-    marginTop: 4,
-    textAlign: 'center',
-  },
-  mediaCard: {
     marginBottom: 12,
   },
-  mediaPreview: {
+  mediaPreviewContainer: {
     position: 'relative',
+    marginBottom: 12,
     borderRadius: 8,
     overflow: 'hidden',
-    backgroundColor: '#f0f0f0',
-    height: 200,
   },
-  mediaImage: {
+  mediaPreview: {
     width: '100%',
-    height: '100%',
+    height: 250,
+    backgroundColor: '#eee',
+    borderRadius: 8,
   },
-  videoPlaceholder: {
-    width: '100%',
-    height: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#333',
-  },
-  videoLabel: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '600',
-    marginTop: 8,
-  },
-  statusBadge: {
+  removeButton: {
     position: 'absolute',
     top: 8,
     right: 8,
-    flexDirection: 'row',
+    width: 40,
+    height: 40,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    borderRadius: 20,
+    justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    gap: 4,
   },
-  statusText: {
-    color: '#fff',
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  mediaInfo: {
-    paddingHorizontal: 8,
-    paddingVertical: 8,
-    backgroundColor: '#fff',
-  },
-  caption: {
-    fontSize: 14,
-    color: '#333',
-    marginBottom: 4,
-    fontWeight: '500',
-  },
-  timestamp: {
-    fontSize: 12,
-    color: '#999',
-  },
-  reviewNotes: {
-    marginTop: 8,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: '#eee',
-  },
-  reviewNotesLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#666',
-    marginBottom: 2,
-  },
-  reviewNotesText: {
-    fontSize: 12,
-    color: '#888',
-  },
-  deleteBtn: {
-    position: 'absolute',
-    bottom: 8,
-    right: 8,
-    padding: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    borderRadius: 6,
-  },
-  separator: {
-    height: 8,
-  },
-  modalContainer: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-  },
-  modalCloseText: {
-    fontSize: 16,
-    color: '#999',
-  },
-  modalTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-  },
-  modalSubmitText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1a73e8',
-  },
-  modalContent: {
-    flex: 1,
-    padding: 16,
-  },
-  previewImage: {
+  mediaPlaceholder: {
     width: '100%',
-    height: 300,
+    height: 200,
+    backgroundColor: '#f0f0f0',
     borderRadius: 8,
-    marginBottom: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderStyle: 'dashed',
   },
-  captionInput: {
-    marginBottom: 20,
-  },
-  inputLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 8,
-  },
-  textInputWrapper: {
-    justifyContent: 'flex-end',
-    alignItems: 'flex-end',
-  },
-  charCount: {
-    fontSize: 12,
+  placeholderText: {
     color: '#999',
+    marginTop: 8,
+    fontSize: 14,
   },
-  detailOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+  buttonGroup: {
+    flexDirection: 'column',
+    gap: 10,
+  },
+  button: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 8,
+    gap: 8,
   },
-  detailClose: {
-    position: 'absolute',
-    top: 16,
-    right: 16,
-    zIndex: 1000,
+  primaryButton: {
+    backgroundColor: '#1a73e8',
   },
-  detailContent: {
-    alignItems: 'center',
-    width: '100%',
-    paddingHorizontal: 16,
+  secondaryButton: {
+    backgroundColor: '#666',
   },
-  detailImage: {
-    width: '100%',
-    height: 500,
-  },
-  detailCaption: {
+  buttonText: {
     color: '#fff',
     fontSize: 14,
+    fontWeight: '600',
+  },
+  descriptionLabel: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 8,
+  },
+  inputContainer: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  textInput: {
+    padding: 12,
+    fontSize: 14,
+    color: '#333',
+    height: 120,
+    textAlignVertical: 'top',
+  },
+  infoBox: {
+    flexDirection: 'row',
+    backgroundColor: '#e8f0fe',
+    padding: 12,
+    borderRadius: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: '#1a73e8',
+  },
+  infoTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1a73e8',
+    marginBottom: 4,
+  },
+  infoText: {
+    fontSize: 12,
+    color: '#555',
+    lineHeight: 18,
+  },
+  submitButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    backgroundColor: '#4CAF50',
+    borderRadius: 8,
+    gap: 8,
+    marginHorizontal: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  submitButtonDisabled: {
+    opacity: 0.6,
+  },
+  submitButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  successContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+  },
+  successTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#333',
     marginTop: 16,
     textAlign: 'center',
+  },
+  successText: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 12,
+    textAlign: 'center',
+    lineHeight: 20,
   },
 });

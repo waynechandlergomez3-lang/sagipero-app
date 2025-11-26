@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "101085036178",
+    "project_id": "sagiperimobile",
+    "storage_bucket": "sagiperimobile.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:101085036178:android:eb9b0aa42248d74da4304b",
+        "android_client_info": {
+          "package_name": "com.sagipero.sagiperomobilefresh"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAGUqn4aR_zKBw6oLLLtNN5gL7WMDOqkN8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
